@@ -78,7 +78,7 @@ O objetivo principal é **automatizar a prospecção de imóveis** encontrados p
 ```mermaid
 sequenceDiagram
   autonumber
-  actor User as Usuário (PWA/HTML)
+  actor User as Usuario (PWA/HTML)
   participant Lambda as AWS Lambda
   participant S3 as Amazon S3
   participant Rekog as AWS Rekognition
@@ -90,12 +90,14 @@ sequenceDiagram
   Lambda->>Lambda: Converter HEIC/JPEG, extrair GPS
   Lambda->>S3: Upload da imagem
   Lambda->>Rekog: Detectar textos
-  Lambda->>Maps: Obter endereço (lat/lon)
+  Lambda->>Maps: Obter endereco (lat/lon)
   Lambda->>GAS: Enviar JSON com dados
   GAS->>Sheet: Registrar linha na planilha
   Lambda-->>User: Retornar JSON com resultado
 
 
+
+```
 
 ## 📌 Diferenciais do Projeto
 - **Integração ponta a ponta** sem necessidade de backend dedicado
@@ -125,6 +127,7 @@ sequenceDiagram
 ---
 
 ## 📂 Estrutura de Pastas
+```text
 /
 ├── lambda/             # Código da AWS Lambda (Python)
 │   ├── requirements.txt
@@ -136,4 +139,4 @@ sequenceDiagram
 ├── apps_script/        # Código do Google Apps Script
 │   └── script.gs
 └── README.md           # Documentação do projeto
-
+```
