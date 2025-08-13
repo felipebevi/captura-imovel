@@ -129,14 +129,14 @@ sequenceDiagram
 ## 📂 Estrutura de Pastas
 ```text
 /
-├── lambda/             # Código da AWS Lambda (Python)
+├── lambda_mvp_foto/             # Código da AWS Lambda (Python)
 │   ├── requirements.txt
-│   └── lambda_function.py
-├── frontend/           # HTML, CSS e JS do PWA
-│   ├── index.html
-│   ├── manifest.json
-│   └── icon-512.png
-├── apps_script/        # Código do Google Apps Script
-│   └── script.gs
+│   └── lambda_function.py  # LAMBDA da AWS
+├── foto.html           # frontend final do projeto
+├── manifest_camptura.json
+├── icon-192.png
+├── icon-512.png
+├── appscript_google.gs # Google APPS Script
+├── s3.json             # JSON inicial do bucket criado
 └── README.md           # Documentação do projeto
 ```
