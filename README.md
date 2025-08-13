@@ -1,7 +1,7 @@
 # 📸 MVP – Captura e Processamento de Fotos de Imóveis
 
 ## 📋 Visão Geral
-Este projeto é um **MVP funcional** que permite **capturar uma foto com o celular na rua** e, em poucos segundos, **catalogar automaticamente os dados do imóvel** em uma planilha online.  
+Este projeto é um **MVP funcional** do projeto principal [**PRECOJA.COM**](https://precoja.com), que permite **capturar uma foto com o celular na rua** e, em poucos segundos, **catalogar automaticamente os dados do imóvel** em uma planilha online.  
 O sistema integra **AWS Lambda**, **S3**, **Google Apps Script**, **Google Maps Geocoding API** e **AWS Rekognition**, suportando também imagens **HEIC** (iPhone) e envio direto via **PWA** ou **upload**.
 
 ---
@@ -77,22 +77,23 @@ O objetivo principal é **automatizar a prospecção de imóveis** encontrados p
 
 ```mermaid
 sequenceDiagram
-    participant User as Usuário (PWA/HTML)
-    participant Lambda as AWS Lambda
-    participant S3 as Amazon S3
-    participant Rekog as AWS Rekognition
-    participant Maps as Google Maps API
-    participant GAS as Google Apps Script
-    participant Sheet as Google Spreadsheet
+  autonumber
+  actor User as Usuário (PWA/HTML)
+  participant Lambda as AWS Lambda
+  participant S3 as Amazon S3
+  participant Rekog as AWS Rekognition
+  participant Maps as Google Maps Geocoding
+  participant GAS as Google Apps Script
+  participant Sheet as Google Sheets
 
-    User->>Lambda: Upload foto (FormData + GPS opcional)
-    Lambda->>Lambda: Converter HEIC/JPEG, extrair GPS
-    Lambda->>S3: Upload da imagem
-    Lambda->>Rekog: Detectar textos
-    Lambda->>Maps: Obter endereço (lat/lon)
-    Lambda->>GAS: Enviar JSON com dados
-    GAS->>Sheet: Registrar linha na planilha
-    Lambda-->>User: Retornar JSON com resultado
+  User->>Lambda: Upload foto (FormData + GPS opcional)
+  Lambda->>Lambda: Converter HEIC/JPEG, extrair GPS
+  Lambda->>S3: Upload da imagem
+  Lambda->>Rekog: Detectar textos
+  Lambda->>Maps: Obter endereço (lat/lon)
+  Lambda->>GAS: Enviar JSON com dados
+  GAS->>Sheet: Registrar linha na planilha
+  Lambda-->>User: Retornar JSON com resultado
 
 
 
