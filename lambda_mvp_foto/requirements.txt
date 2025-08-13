@@ -1,0 +1,5 @@
+boto3
+exifread
+requests
+pillow
+pyheif
