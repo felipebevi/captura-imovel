@@ -138,5 +138,6 @@ sequenceDiagram
 ├── icon-512.png
 ├── appscript_google.gs # Google APPS Script
 ├── s3.json             # JSON inicial do bucket criado
-└── README.md           # Documentação do projeto
+├── README.md           # Documentação do projeto
+└── live-demo.mp4       # Video demonstracao
 ```
