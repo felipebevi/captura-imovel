@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Captura de Imóvel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f9f9f9;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 2rem;
+      color: #333;
+    }
+
+    #photoInput {
+      display: none;
+    }
+
+    label#uploadButton {
+      display: inline-block;
+      background-color: #007bff;
+      color: #fff;
+      padding: 1rem 2rem;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    label#uploadButton.loading {
+      background-color: #555;
+      cursor: not-allowed;
+    }
+
+    label#uploadButton.loading::after {
+      content: ' ⏳ Enviando...';
+    }
+
+    #status {
+      margin-top: 1.5rem;
+      font-size: 1rem;
+    }
+
+    #pwaPrompt {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #007bff;
+      color: white;
+      padding: 1rem;
+      font-size: 1rem;
+      text-align: center;
+      z-index: 1000;
+      display: none;
+    }
+
+    #pwaPrompt button {
+      background: white;
+      color: #007bff;
+      border: none;
+      padding: 0.5rem 1rem;
+      margin-left: 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #debugStatus {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #222;
+      color: #0f0;
+      font-size: 0.9rem;
+      padding: 0.5rem;
+      font-family: monospace;
+      z-index: 9999;
+      text-align: left;
+      white-space: pre-wrap;
+      max-height: 30vh;
+      overflow-y: auto;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 512px;
+      height: 512px;
+      background-image: url('icon-512.png');
+      background-repeat: no-repeat;
+      background-size: contain;
+      opacity: 0.2;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+
+
+  </style>
+  <link rel="manifest" href="/manifest_captura.json">
+  <meta name="theme-color" content="#007bff">
+
+</head>
+<body>
+  <div id="debugStatus" class="debugStatus" style="display:none;">[DEBUG]</div>
+  
+  <h1 style="padding-top: 200px;"><span onclick="javascript:mostrarDebug()">📸</span> Captura de Imóvel</h1>
+
+  <input type="file" id="photoInput" accept="image/*" capture="environment">
+  <label for="photoInput" id="uploadButton">📤 Tirar ou Enviar Foto</label>
+
+  <div id="status"></div>
+  <button class="debugStatus" style="display:none;" onclick="verificarInstalabilidade()">🔍 Verificar Instalabilidade</button>
+
+  <script>
+    let lat = null, lon = null;
+    let watchId = null;
+    let deferredPrompt = null;
+
+    function logDebug(msg) {
+      const debugEl = document.getElementById("debugStatus");
+      if (debugEl) {
+        const time = new Date().toLocaleTimeString();
+        const newMsg = `[${time}] ${msg}`;
+
+        // Limita a 50 linhas no log para evitar congelamentos
+        const linhas = debugEl.textContent.split("\n");
+        if (linhas.length >= 50) {
+          linhas.shift();
+        }
+        linhas.push(newMsg);
+        debugEl.textContent = linhas.join("\n");
+      }
+    }
+
+    function verificarInstalabilidade() {
+      logDebug("🧪 Checando requisitos...");
+      logDebug("Manifest presente: " + !!document.querySelector('link[rel="manifest"]'));
+      logDebug("Display-mode standalone: " + window.matchMedia('(display-mode: standalone)').matches);
+      logDebug("UserAgent: " + navigator.userAgent);
+    }
+
+    function mostrarDebug() {
+      const debugEl = document.getElementById("debugStatus");
+      if (!debugEl) return;
+
+      const isHidden = debugEl.style.display === "none";
+      debugEl.style.display = isHidden ? "block" : "none";
+      logDebug(`🔍 Debug ${isHidden ? "ativado" : "desativado"}`);
+    }
+
+    function iniciarGPS() {
+      if (!navigator.geolocation) {
+        logDebug("Navegador não suporta GPS.");
+        return;
+      }
+
+      let ultimaAtualizacao = 0;
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const agora = Date.now();
+
+          // Atualiza no máximo a cada 15 segundos
+          if (agora - ultimaAtualizacao > 15000) {
+            lat = pos.coords.latitude;
+            lon = pos.coords.longitude;
+            ultimaAtualizacao = agora;
+            logDebug(`📍 Localização atualizada: ${lat}, ${lon}`);
+          }
+        },
+        (err) => {
+          logDebug(`⚠️ Erro no GPS contínuo: ${err.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 10000,
+          timeout: 10000
+        }
+      );
+    }
+
+    async function enviarFoto(file) {
+      const botao = document.getElementById("uploadButton");
+      const statusText = document.getElementById("status");
+
+      botao.classList.add("loading");
+      statusText.textContent = "";
+
+      if (!lat || !lon) {
+        statusText.textContent = "⚠️ Localização não disponível no momento. A foto será enviada mesmo assim.";
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      let url = "https://a4hcgqi5kupnvbo5rm22ben2le0xufqd.lambda-url.us-east-2.on.aws/";
+      if (lat && lon) url += `?lat=${lat}&lon=${lon}`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        logDebug(`📦 Resposta: ${JSON.stringify(data)}`);
+
+        if (data && (data.status || data.numero_casa || data.telefones)) {
+          statusText.textContent = "✅ Foto processada com sucesso!";
+        } else {
+          statusText.textContent = "⚠️ Foto enviada, mas sem dados detectados.";
+        }
+      } catch (err) {
+        logDebug("❌ Erro ao enviar:", err);
+        statusText.textContent = "❌ Erro ao enviar. Tente novamente.";
+      } finally {
+        botao.classList.remove("loading");
+        document.getElementById("photoInput").value = "";
+      }
+    }
+
+    function isIOS() {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent);
+    }
+
+    function isInStandaloneMode() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    async function mostrarPromptInstalacao() {
+      if (!deferredPrompt) {
+        logDebug("⚠️ deferredPrompt ainda não disponível.");
+        return;
+      }
+
+      try {
+        await deferredPrompt.prompt();
+        const escolha = await deferredPrompt.userChoice;
+
+        logDebug(`🧾 Escolha do usuário: ${escolha.outcome}`);
+
+        if (escolha.outcome === 'accepted') {
+          logDebug("✅ App será instalado");
+        } else {
+          logDebug("❌ Usuário recusou a instalação");
+        }
+
+        deferredPrompt = null;
+      } catch (e) {
+        logDebug("❌ Erro ao exibir prompt:", e);
+      }
+    }
+
+    function fecharPrompt() {
+      document.getElementById("pwaPrompt").style.display = "none";
+      mostrarPromptInstalacao(); // chama o prompt aqui
+    }
+
+    // DEBUG opcional: botão escondido para chamar forçadamente
+    window.testarInstalacao = () => {
+      logDebug("🚀 Chamando prompt manual...");
+      mostrarPromptInstalacao();
+    };
+
+    // Instalação PWA Android
+    window.addEventListener("beforeinstallprompt", (e) => {
+      logDebug("✅ Evento beforeinstallprompt capturado");
+      e.preventDefault();
+      deferredPrompt = e;
+
+      if (!window.matchMedia('(display-mode: standalone)').matches) {
+        document.getElementById("pwaPrompt").style.display = "block";
+      }
+    });
+
+    // DOM Ready
+    document.addEventListener("DOMContentLoaded", () => {
+      const input = document.getElementById("photoInput");
+
+      input.addEventListener("change", () => {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const img = new Image();
+          img.onload = function () {
+            const canvas = document.createElement("canvas");
+            const MAX_DIM = 1600;
+
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_DIM) {
+                height *= MAX_DIM / width;
+                width = MAX_DIM;
+              }
+            } else {
+              if (height > MAX_DIM) {
+                width *= MAX_DIM / height;
+                height = MAX_DIM;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Exporta como JPEG, 80% de qualidade
+            canvas.toBlob((blob) => {
+              if (blob) {
+                const compressedFile = new File([blob], file.name, { type: "image/jpeg" });
+                enviarFoto(compressedFile);
+              } else {
+                logDebug("❌ Falha ao comprimir imagem.");
+              }
+            }, "image/jpeg", 0.8);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+
+      iniciarGPS();
+
+      // Sugestão para iOS
+      if (isIOS() && !isInStandaloneMode()) {
+        const pwaPrompt = document.getElementById("pwaPrompt");
+        pwaPrompt.innerHTML = `
+          📱 Para instalar este app:<br>
+          1. Toque no botão <strong>“Compartilhar”</strong> (ícone com seta pra cima)<br>
+          2. Escolha <strong>“Adicionar à Tela de Início”</strong>
+        `;
+        pwaPrompt.style.display = "block";
+      }
+    });
+
+  </script>
+
+  <div id="pwaPrompt">
+    📱 Adicionar à tela inicial
+    <button onclick="fecharPrompt()">OK</button>
+  </div>
+
+
+</body>
+</html>
