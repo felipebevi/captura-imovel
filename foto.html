@@ -235,6 +235,7 @@
             iniciarGPS();
             window.setTimeout(function(){
               statusText.textContent = "";
+              location.reload();
             },5000);
           })
           .catch(err => {
