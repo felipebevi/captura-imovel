@@ -188,18 +188,37 @@
           logDebug(`📍 Localização obtida: ${lat}, ${lon}`);
         },
         (err) => {
-          logDebug(`⚠️ Erro ao obter localização: ${err.message}`);
+          logDebug(`⚠️ Erro ao obter localização (modo rápido): ${err.message}`);
+
+          // Fallback com watchPosition se o getCurrentPosition falhar
+          const watchIdFallback = navigator.geolocation.watchPosition(
+            (pos) => {
+              lat = pos.coords.latitude;
+              lon = pos.coords.longitude;
+              logDebug(`📍 Localização (fallback) obtida: ${lat}, ${lon}`);
+              navigator.geolocation.clearWatch(watchIdFallback);
+            },
+            (err2) => {
+              logDebug(`❌ Erro no fallback GPS: ${err2.message}`);
+            },
+            {
+              enableHighAccuracy: true,
+              maximumAge: 10000,
+              timeout: 10000
+            }
+          );
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 2000
+          maximumAge: 8000,
+          timeout: 10000 // aumentamos de 2000 → 10000ms (10s)
         }
       );
 
-      // Repetição automática a cada 3 segundos
-      _gps = setTimeout(iniciarGPS, 5000);
+      // Repetição automática para manter atualização
+      _gps = setTimeout(iniciarGPS, 15000); // executa a cada 15s
     }
+
 
     
     async function enviarFoto(file) {
@@ -235,7 +254,6 @@
             iniciarGPS();
             window.setTimeout(function(){
               statusText.textContent = "";
-              location.reload();
             },5000);
           })
           .catch(err => {
