@@ -115,7 +115,7 @@
   
   <h1 style="padding-top: 200px;"><span onclick="javascript:mostrarDebug()">📸</span> Captura de Imóvel</h1>
 
-  <input type="file" id="photoInput" accept="image/*" capture="environment">
+  <input type="file" id="photoInput" accept="image/*" capture>
   <label for="photoInput" id="uploadButton">📤 Tirar ou Enviar Foto</label>
 
   <div id="status"></div>
@@ -124,6 +124,7 @@
   <script>
     let lat = null, lon = null;
     let watchId = null;
+    let _gps=null;
     let deferredPrompt = null;
 
     function logDebug(msg) {
@@ -150,82 +151,97 @@
     }
 
     function mostrarDebug() {
-      const debugEl = document.getElementById("debugStatus");
+      const debugEl = document.getElementsByClassName("debugStatus");
       if (!debugEl) return;
-
-      const isHidden = debugEl.style.display === "none";
-      debugEl.style.display = isHidden ? "block" : "none";
+      let isHidden=false;
+      Array.from(debugEl).forEach(element => {
+        element.style.display = element.style.display === "none" ? "block" : "none";
+        isHidden = element.style.display === "block";
+      });
       logDebug(`🔍 Debug ${isHidden ? "ativado" : "desativado"}`);
     }
 
     function iniciarGPS() {
+      if (_gps) {
+        clearTimeout(_gps);
+        _gps = null;
+      }
+
       if (!navigator.geolocation) {
-        logDebug("Navegador não suporta GPS.");
+        logDebug("⚠️ Navegador não suporta GPS.");
         return;
       }
 
-      let ultimaAtualizacao = 0;
+      logDebug("📍 Tentando obter localização atual...");
 
-      watchId = navigator.geolocation.watchPosition(
+      navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const agora = Date.now();
-
-          // Atualiza no máximo a cada 15 segundos
-          if (agora - ultimaAtualizacao > 15000) {
-            lat = pos.coords.latitude;
-            lon = pos.coords.longitude;
-            ultimaAtualizacao = agora;
-            logDebug(`📍 Localização atualizada: ${lat}, ${lon}`);
-          }
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+          logDebug(`📍 Localização obtida: ${lat}, ${lon}`);
         },
         (err) => {
-          logDebug(`⚠️ Erro no GPS contínuo: ${err.message}`);
+          logDebug(`⚠️ Erro ao obter localização: ${err.message}`);
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 10000,
-          timeout: 10000
+          maximumAge: 0,
+          timeout: 2000
         }
       );
+
+      // Repetição automática a cada 3 segundos
+      _gps = setTimeout(iniciarGPS, 5000);
     }
 
+    
     async function enviarFoto(file) {
       const botao = document.getElementById("uploadButton");
       const statusText = document.getElementById("status");
 
       botao.classList.add("loading");
       statusText.textContent = "";
+      iniciarGPS();
+      const atualizarLocalizacaoEEnviar = () => {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      if (!lat || !lon) {
-        statusText.textContent = "⚠️ Localização não disponível no momento. A foto será enviada mesmo assim.";
-      }
+        let url = "https://a4hcgqi5kupnvbo5rm22ben2le0xufqd.lambda-url.us-east-2.on.aws/";
+        if (lat && lon) url += `?lat=${lat}&lon=${lon}`;
+        else statusText.textContent = "⚠️ Localização não disponível no momento. A foto será enviada mesmo assim.";
 
-      const formData = new FormData();
-      formData.append("file", file);
-
-      let url = "https://a4hcgqi5kupnvbo5rm22ben2le0xufqd.lambda-url.us-east-2.on.aws/";
-      if (lat && lon) url += `?lat=${lat}&lon=${lon}`;
-
-      try {
-        const res = await fetch(url, {
+        fetch(url, {
           method: "POST",
           body: formData
-        });
-
-        const data = await res.json();
-        logDebug(`📦 Resposta: ${JSON.stringify(data)}`);
-
-        if (data && (data.status || data.numero_casa || data.telefones)) {
-          statusText.textContent = "✅ Foto processada com sucesso!";
-        } else {
-          statusText.textContent = "⚠️ Foto enviada, mas sem dados detectados.";
-        }
-      } catch (err) {
-        logDebug("❌ Erro ao enviar:", err);
-        statusText.textContent = "❌ Erro ao enviar. Tente novamente.";
-      } finally {
-        botao.classList.remove("loading");
-        document.getElementById("photoInput").value = "";
+        })
+          .then(res => res.json())
+          .then(data => {
+            logDebug(`📦 Resposta: ${JSON.stringify(data)}`);
+            if (data && (data.status || data.numero_casa || data.telefones)) {
+              statusText.textContent = "✅ Foto processada com sucesso!";
+            } else {
+              statusText.textContent = "⚠️ Foto enviada, mas sem dados detectados.";
+            }
+            iniciarGPS();
+            window.setTimeout(function(){
+              statusText.textContent = "";
+            },5000);
+          })
+          .catch(err => {
+            logDebug("❌ Erro ao enviar:", err);
+            statusText.textContent = "❌ Erro ao enviar. Tente novamente.";
+          })
+          .finally(() => {
+            botao.classList.remove("loading");
+            document.getElementById("photoInput").value = "";
+          });
+      };
+      if (lat === null || lon === null) {
+        logDebug("🔄 Atualizando localização antes de enviar...");
+        iniciarGPS();
+        window.setTimeout(atualizarLocalizacaoEEnviar, 3000); // espera 3 segundos para garantir que o GPS foi atualizado
+      } else {
+        atualizarLocalizacaoEEnviar();
       }
     }
 
