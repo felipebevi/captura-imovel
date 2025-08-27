@@ -22,7 +22,8 @@
       display: none;
     }
 
-    label#uploadButton {
+    label#btnCamera,
+    label#btnGallery {
       display: inline-block;
       background-color: #007bff;
       color: #fff;
@@ -33,12 +34,14 @@
       transition: background 0.3s;
     }
 
-    label#uploadButton.loading {
+    label#btnCamera.loading,
+    label#btnGallery.loading {
       background-color: #555;
       cursor: not-allowed;
     }
 
-    label#uploadButton.loading::after {
+    label#btnCamera.loading::after,
+    label#btnGallery.loading::after {
       content: ' ⏳ Enviando...';
     }
 
@@ -115,8 +118,12 @@
   
   <h1 style="padding-top: 200px;"><span onclick="javascript:mostrarDebug()">📸</span> Captura de Imóvel</h1>
 
-  <input type="file" id="photoInput" accept="image/*">
-  <label for="photoInput" id="uploadButton">📤 Tirar ou Enviar Foto</label>
+  <input type="file" id="photoInputCamera" accept="image/*" capture="environment" style="display:none">
+  <input type="file" id="photoInputGallery" accept="image/*" style="display:none">
+
+  <label for="photoInputCamera" id="btnCamera">📸 Tirar Foto</label><hr>
+  <label for="photoInputGallery" id="btnGallery">🖼️ Escolher do Álbum</label>
+
 
   <div id="status"></div>
   <button class="debugStatus" style="display:none;" onclick="verificarInstalabilidade()">🔍 Verificar Instalabilidade</button>
@@ -196,12 +203,15 @@
 
     
     async function enviarFoto(file) {
-      const botao = document.getElementById("uploadButton");
       const statusText = document.getElementById("status");
+
+      // Verifica qual botão foi usado por último (btnCamera ou btnGallery)
+      const botao = window._botaoUsado || document.getElementById("btnCamera");
 
       botao.classList.add("loading");
       statusText.textContent = "";
       iniciarGPS();
+
       const atualizarLocalizacaoEEnviar = () => {
         const formData = new FormData();
         formData.append("file", file);
@@ -301,57 +311,66 @@
 
     // DOM Ready
     document.addEventListener("DOMContentLoaded", () => {
-      const input = document.getElementById("photoInput");
-
-      input.addEventListener("change", () => {
-        const file = input.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const img = new Image();
-          img.onload = function () {
-            const canvas = document.createElement("canvas");
-            const MAX_DIM = 1600;
-
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-              if (width > MAX_DIM) {
-                height *= MAX_DIM / width;
-                width = MAX_DIM;
-              }
-            } else {
-              if (height > MAX_DIM) {
-                width *= MAX_DIM / height;
-                height = MAX_DIM;
-              }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, width, height);
-
-            // Exporta como JPEG, 80% de qualidade
-            canvas.toBlob((blob) => {
-              if (blob) {
-                const compressedFile = new File([blob], file.name, { type: "image/jpeg" });
-                enviarFoto(compressedFile);
-              } else {
-                logDebug("❌ Falha ao comprimir imagem.");
-              }
-            }, "image/jpeg", 0.8);
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
+      // Marcar qual botão foi clicado para aplicar a animação de loading correta
+      document.getElementById("btnCamera").addEventListener("click", () => {
+        window._botaoUsado = document.getElementById("btnCamera");
+      });
+      document.getElementById("btnGallery").addEventListener("click", () => {
+        window._botaoUsado = document.getElementById("btnGallery");
       });
 
+      ["photoInputCamera", "photoInputGallery"].forEach((id) => {
+        const input = document.getElementById(id);
+
+        input.addEventListener("change", () => {
+          const file = input.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+              const canvas = document.createElement("canvas");
+              const MAX_DIM = 1600;
+
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > MAX_DIM) {
+                  height *= MAX_DIM / width;
+                  width = MAX_DIM;
+                }
+              } else {
+                if (height > MAX_DIM) {
+                  width *= MAX_DIM / height;
+                  height = MAX_DIM;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, width, height);
+
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const compressedFile = new File([blob], file.name, { type: "image/jpeg" });
+                  enviarFoto(compressedFile);
+                } else {
+                  logDebug("❌ Falha ao comprimir imagem.");
+                }
+              }, "image/jpeg", 0.8);
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      });
 
       iniciarGPS();
+
 
       // Sugestão para iOS
       if (isIOS() && !isInStandaloneMode()) {
@@ -363,6 +382,7 @@
         `;
         pwaPrompt.style.display = "block";
       }
+  
     });
 
   </script>
